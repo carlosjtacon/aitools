@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>🎙️ Professional WAV Recorder</title>
+<link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body>
+  <div class="main-container">
+    <!-- Main Control Panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <h1 class="panel-title">Audio Recorder</h1>
+          <p class="panel-subtitle">Professional WAV Recording with EQ</p>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 11px; color: var(--text-tertiary);">Sample Rate</div>
+          <div style="font-size: 13px; font-weight: 600; color: var(--accent-green);" id="sr">-</div>
+        </div>
+      </div>
+
+      <div class="panel-content">
+        <!-- Device & Quality Settings -->
+        <div class="control-section">
+          <h3 class="section-title">Input Configuration</h3>
+          
+          <div class="control-group" style="margin-bottom: 12px;">
+            <label for="device">Audio Input Device</label>
+            <select id="device"></select>
+          </div>
+
+          <div class="control-row">
+            <div class="control-group">
+              <label for="sampleRate">Sample Rate</label>
+              <select id="sampleRate">
+                <option value="48000">48 kHz (Professional)</option>
+                <option value="44100">44.1 kHz (CD Quality)</option>
+                <option value="22050">22 kHz (Voice)</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label for="channels">Channels</label>
+              <select id="channels">
+                <option value="2">Stereo</option>
+                <option value="1">Mono</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Enhanced Level Meter -->
+        <div class="control-section">
+          <div class="meter-container">
+            <div class="meter-header">
+              <span class="meter-label">Input Level</span>
+              <div class="quality-indicator" id="qualityIndicator"></div>
+            </div>
+            
+            <div class="channel-meters" id="channelMeters">
+              <!-- Meters will be populated by JavaScript -->
+            </div>
+            
+            <div class="meter-status">
+              <div>
+                <span class="timer" id="timer">00:00</span>
+              </div>
+              <div class="recording-status" id="rec-state">READY</div>
+            </div>
+
+            <!-- INPUT-LEVEL controls: session name (placeholder), toggles, and record button -->
+            <div class="input-level-controls" id="inputLevelControls">
+              <div class="control-item">
+                <input id="sessionNameSmall" type="text" placeholder="My Jam Session / Tape 1" />
+              </div>
+
+              <!-- Row with both toggles: Auto-record and Normalize -->
+              <div class="control-item" style="display:flex; gap:8px; align-items:center;">
+                <label class="switch" title="Toggle Auto-record (detect songs and auto-save)">
+                  <input type="checkbox" id="autoRecordSwitch" />
+                  <span class="slider"></span>
+                </label>
+                <div style="font-size:12px;color:var(--text-secondary);">Auto-record</div>
+
+                <label class="switch" title="Normalize final recording to -14 LUFS">
+                  <input type="checkbox" id="normalizeSwitch" />
+                  <span class="slider"></span>
+                </label>
+                <div style="font-size:12px;color:var(--text-secondary);">Normalize volume</div>
+              </div>
+
+              <!-- Record button below, full width -->
+              <div class="control-item record-full" style="width:100%; margin-top: 10px;">
+                <button id="record" class="btn btn-primary"><span>⏺</span> Record</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Simplified EQ Section -->
+        <div class="control-section">
+          <div class="eq-container">
+            <h3 class="section-title">Equalizer</h3>
+            
+            <div class="eq-controls">
+              <div class="eq-channel">
+                <div class="eq-label">Bass</div>
+                <div class="eq-slider-container">
+                  <input id="bass" class="eq-slider" type="range" min="-20" max="20" step="0.25" value="0" />
+                </div>
+                <div class="eq-value" id="bass-val">0.0 dB</div>
+              </div>
+
+              <div class="eq-channel">
+                <div class="eq-label">Mid</div>
+                <div class="eq-slider-container">
+                  <input id="mid" class="eq-slider" type="range" min="-20" max="20" step="0.25" value="0" />
+                </div>
+                <div class="eq-value" id="mid-val">0.0 dB</div>
+              </div>
+
+              <div class="eq-channel">
+                <div class="eq-label">Treble</div>
+                <div class="eq-slider-container">
+                  <input id="treble" class="eq-slider" type="range" min="-20" max="20" step="0.25" value="0" />
+                </div>
+                <div class="eq-value" id="treble-val">0.0 dB</div>
+              </div>
+
+              <div class="eq-channel">
+                <div class="eq-label">Gain</div>
+                <div class="eq-slider-container">
+                  <input id="gain" class="eq-slider" type="range" min="0" max="2" step="0.01" value="1" />
+                </div>
+                <div class="eq-value" id="gain-val">1.00x</div>
+              </div>
+            </div>
+
+            <div class="preset-buttons">
+              <button class="preset-btn" id="preset-lofi">Lo-Fi</button>
+              <button class="preset-btn" id="preset-voice">Voice</button>
+              <button class="preset-btn" id="preset-warm">Warm</button>
+              <button class="preset-btn" id="preset-flat">Flat</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Format Info -->
+        <div style="font-size: 11px; color: var(--text-tertiary); text-align: center; padding: 12px; background: var(--surface-elevated); border-radius: 6px; margin-top: 16px;">
+          Output: <strong id="format-info" style="color: var(--accent-green);">16-bit PCM WAV (Stereo)</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monitor Speaker -->
+    <div class="panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">Monitor</h2>
+          <p class="panel-subtitle">Speaker Output</p>
+        </div>
+      </div>
+
+      <div class="panel-content">
+        <div class="speaker-container">
+          <div class="speaker-icon" id="speakerIcon">🔊</div>
+          
+          <div class="volume-control">
+            <label>Volume</label>
+            <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="70">
+            <div class="volume-display" id="volumeDisplay">70%</div>
+          </div>
+
+          <button class="monitor-btn" id="monitor">Enable Monitor</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script type="text/javascript" src="scripts.js?v=1"></script>
+</body>
+</html>
