@@ -1,7 +1,3 @@
----
-layout: none
-title: Budget Planner
----
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -125,7 +121,6 @@ title: Budget Planner
     background: var(--green-dark); color: var(--green-bright);
     text-shadow: 0 0 8px var(--green); box-shadow: inset 0 -3px 0 var(--green);
   }
-  .tab.active::before { content: '> '; }
 
   /* Panels */
   .panel { display: none; }
@@ -140,7 +135,6 @@ title: Budget Planner
     display: block; font-size: 11px; letter-spacing: .12em;
     color: var(--green-dim); margin-bottom: 4px; text-transform: uppercase;
   }
-  .field label::before { content: '> '; }
   input[type=text], input[type=number], input[type=date], select {
     width: 100%; background: #010d04; border: 1px solid var(--green-dim);
     color: var(--green); font-family: 'Share Tech Mono', monospace; font-size: 13px;
@@ -257,7 +251,6 @@ title: Budget Planner
     <h1 class="glow-bright">WANDERLEDGER</h1>
     <div class="subtitle">TRAVEL BUDGET TRACKING SYSTEM v1.0</div>
     <div class="sys-info" id="sys-info">SYS: READY &nbsp;|&nbsp; <span id="clock"></span></div>
-    <div id="boot-line" class="cursor">AWAITING INPUT</div>
   </div>
 
   <!-- TABS -->
@@ -270,14 +263,14 @@ title: Budget Planner
 
   <!-- DASHBOARD -->
   <div id="panel-dashboard" class="panel active">
-    <div id="trip-bar" style="display:none">
+    <div id="trip-bar">
       <div class="dates">
-        <span id="db-start"></span>
-        <span id="db-days-left" class="days-left"></span>
-        <span id="db-end"></span>
+        <span id="db-start">—</span>
+        <span id="db-days-left" class="days-left">SET TRIP DATES IN SETTINGS</span>
+        <span id="db-end">—</span>
       </div>
-      <div class="prog-bar"><div class="prog-fill" id="db-trip-fill"></div></div>
-      <div class="info-row">ELAPSED <span id="db-elapsed-pct"></span> &nbsp;·&nbsp; <span id="db-days-num"></span> DAYS REMAINING</div>
+      <div class="prog-bar"><div class="prog-fill" id="db-trip-fill" style="width:0%"></div></div>
+      <div class="info-row">ELAPSED <span id="db-elapsed-pct">—</span> &nbsp;·&nbsp; <span id="db-days-num">—</span> DAYS REMAINING</div>
     </div>
 
     <div class="stats-grid">
@@ -320,22 +313,6 @@ title: Budget Planner
         </div>
         <div class="prog-bar"><div class="prog-fill" id="db-ext-fill"></div></div>
         <div class="info-row"><span id="db-ext-pct">—</span> USED &nbsp;·&nbsp; <span style="color:var(--green-dim);font-size:11px">NO PROJECTION — RESERVE FUND</span></div>
-      </div>
-    </div>
-
-    <!-- Total row -->
-    <div class="stat-card" style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px">
-      <div>
-        <div class="stat-title" style="margin-bottom:3px">TOTAL BUDGET</div>
-        <div class="stat-val" id="db-total-budget" style="font-size:28px">—</div>
-      </div>
-      <div style="text-align:center">
-        <div class="stat-title">REMAINING</div>
-        <div class="stat-val" id="db-total-rem" style="font-size:28px">—</div>
-      </div>
-      <div style="text-align:right">
-        <div class="stat-title">ORD. PROJECTED SPEND</div>
-        <div class="stat-val" id="db-total-proj" style="font-size:28px">—</div>
       </div>
     </div>
   </div>
@@ -395,6 +372,9 @@ title: Budget Planner
         <div class="field"><label>Ordinary Budget</label><input type="number" id="s-ord" placeholder="e.g. 20000" oninput="saveSetting('ordBudget',this.value)"></div>
         <div class="field"><label>Extraordinary Budget</label><input type="number" id="s-ext" placeholder="e.g. 5000" oninput="saveSetting('extBudget',this.value)"></div>
         <div class="field"><label>Currency Symbol</label><input type="text" id="s-sym" maxlength="4" placeholder="$" oninput="saveSetting('currency',this.value)"></div>
+      </div>
+      <div style="font-size:11px;color:var(--green-dim);line-height:1.6;margin-top:4px;letter-spacing:.04em">
+        <span style="color:var(--green)">◆ EARNING MONEY MID-TRIP?</span> Update the total budget to your new total, then log a new balance snapshot with the higher balance. Spend calculations come from snapshot differences — the burn rate will automatically ignore any top-up intervals.
       </div>
     </div>
 
@@ -529,7 +509,7 @@ function resetAll() {
 // ─── Analytics helpers ────────────────────────────────────────────────────────
 function fmt(n) {
   const sym = state.settings.currency || '$';
-  if(n==null||isNaN(n)||n===0&&isNaN(n)) return '—';
+  if(n==null||isNaN(n)) return '—';
   return sym + Math.round(n).toLocaleString();
 }
 
@@ -537,7 +517,26 @@ function monthKey(d)  { return (typeof d==='string'?d:d.toISOString()).slice(0,7
 function monthLabel(k){ const [y,m]=k.split('-'); return new Date(y,m-1).toLocaleString('default',{month:'short',year:'2-digit'}); }
 function daysInMonth(k){ const [y,m]=k.split('-').map(Number); return new Date(y,m,0).getDate(); }
 
-// Distributes spend evenly per-day between each pair of snapshots, then sums by calendar month.
+// Linearly interpolate the balance for a given date from surrounding snapshots.
+// Returns null if the date is before the first snapshot or after the last.
+function interpolateBalance(field, date) {
+  const pts = state.snapshots
+    .filter(s => s[field]!=null)
+    .map(s => ({ t: new Date(s.date+'T00:00:00').getTime(), bal: s[field] }));
+  if(!pts.length) return null;
+  const t = date.getTime();
+  if(t < pts[0].t) return null;
+  if(t > pts[pts.length-1].t) return null;
+  for(let i=1; i<pts.length; i++){
+    if(t <= pts[i].t){
+      const ratio = (t - pts[i-1].t) / (pts[i].t - pts[i-1].t);
+      return pts[i-1].bal - (pts[i-1].bal - pts[i].bal) * ratio;
+    }
+  }
+  return pts[pts.length-1].bal;
+}
+
+// Distributes spend evenly per-day between each pair of snapshots, sums by calendar month.
 function getMonthlySpend(field) {
   const pts = state.snapshots
     .filter(s => s[field]!=null)
@@ -547,27 +546,32 @@ function getMonthlySpend(field) {
   for(let i=1; i<pts.length; i++){
     const prev = pts[i-1], cur = pts[i];
     const totalSpent = prev.bal - cur.bal;
+    // If balance went UP (top-up / income), treat as zero spend for this interval.
+    const dailyRate = totalSpent <= 0 ? 0 : totalSpent /
+      Math.max(1, Math.round((cur.date - prev.date) / 86400000));
     const days = Math.max(1, Math.round((cur.date - prev.date) / 86400000));
-    const dailyRate = totalSpent / days;
     for(let d=1; d<=days; d++){
       const day = new Date(prev.date.getTime() + d*86400000);
       const mk = monthKey(day);
       months[mk] = (months[mk]||0) + dailyRate;
     }
   }
-  return Object.entries(months).sort().map(([k,v])=>({month:k, label:monthLabel(k), spend:Math.max(0,v)}));
+  return Object.entries(months).sort().map(([k,v])=>({month:k, label:monthLabel(k), spend:Math.round(Math.max(0,v))}));
 }
 
-// Daily burn rate: total balance drop divided by days elapsed across all snapshots.
+// Overall average daily burn rate across all spending intervals (top-up intervals excluded).
 function getDailyBurnRate(field) {
   const pts = state.snapshots.filter(s => s[field]!=null);
   if(pts.length < 2) return null;
-  const first = pts[0], last = pts[pts.length-1];
-  const days = Math.max(1, Math.round(
-    (new Date(last.date+'T00:00:00') - new Date(first.date+'T00:00:00')) / 86400000
-  ));
-  const rate = (first.bal - last.bal) / days;
-  return rate > 0 ? rate : null;
+  let totalSpent = 0, totalDays = 0;
+  for(let i=1; i<pts.length; i++){
+    const days = Math.max(1, Math.round(
+      (new Date(pts[i].date+'T00:00:00') - new Date(pts[i-1].date+'T00:00:00')) / 86400000
+    ));
+    const spent = pts[i-1].bal - pts[i].bal;
+    if(spent > 0){ totalSpent += spent; totalDays += days; }
+  }
+  return totalDays > 0 ? totalSpent / totalDays : null;
 }
 
 function tripStats() {
@@ -592,18 +596,21 @@ function renderDashboard() {
   const latest = snaps.length ? snaps[snaps.length-1] : null;
 
   // Trip bar
-  const tripBar = document.getElementById('trip-bar');
   if(s.tripStart && s.tripEnd) {
-    tripBar.style.display='block';
     document.getElementById('db-start').textContent = s.tripStart;
     document.getElementById('db-end').textContent   = s.tripEnd;
-    document.getElementById('db-days-left').textContent = (ts.daysLeft!=null ? ts.daysLeft+' DAYS LEFT' : '');
+    document.getElementById('db-days-left').textContent = (ts.daysLeft!=null ? ts.daysLeft+' DAYS LEFT' : '—');
     document.getElementById('db-elapsed-pct').textContent = ts.progress != null ? Math.round(ts.progress*100)+'%' : '—';
     document.getElementById('db-days-num').textContent = ts.daysLeft ?? '—';
     const fill = document.getElementById('db-trip-fill');
     fill.style.width = (ts.progress != null ? Math.round(ts.progress*100) : 0)+'%';
   } else {
-    tripBar.style.display='none';
+    document.getElementById('db-start').textContent = s.tripStart || '—';
+    document.getElementById('db-end').textContent   = s.tripEnd || '—';
+    document.getElementById('db-days-left').textContent = 'SET TRIP DATES IN SETTINGS';
+    document.getElementById('db-elapsed-pct').textContent = '—';
+    document.getElementById('db-days-num').textContent = '—';
+    document.getElementById('db-trip-fill').style.width = '0%';
   }
 
   const ordBudget = parseFloat(s.ordBudget)||0;
@@ -613,12 +620,17 @@ function renderDashboard() {
   const ordSpent = (ordBudget>0 && curOrd!=null) ? ordBudget-curOrd : null;
   const extSpent = (extBudget>0 && curExt!=null) ? extBudget-curExt : null;
 
-  // Projection: use daily burn rate if available (≥2 snapshots), else fall back to spent/daysElapsed
+  // Daily burn rate; fall back to spent/elapsed if only one snapshot
   const ordDailyRate = getDailyBurnRate('ordinary')
     ?? (ordSpent!=null && ts.daysElapsed>0 ? ordSpent/ts.daysElapsed : null);
+
+  // Projected total spend at end of trip = already spent + rate × days left
   const ordProj = (ordDailyRate!=null && ordSpent!=null && ts.daysLeft!=null)
     ? ordSpent + ordDailyRate * ts.daysLeft : null;
-  const monthBudgetOrd = (ordBudget>0 && ts.monthsTotal) ? ordBudget/ts.monthsTotal : null;
+
+  // Monthly budget = current balance / days remaining × 30.44  (what you can afford per month from now)
+  const monthBudgetOrd = (curOrd!=null && ts.daysLeft!=null && ts.daysLeft>0)
+    ? curOrd / ts.daysLeft * 30.44 : null;
   const ordMonthAvg = ordDailyRate != null ? ordDailyRate * 30.44 : null;
 
   function setProg(fillId, pct, val, budget) {
@@ -649,11 +661,6 @@ function renderDashboard() {
     setProg('db-ext-fill', pct);
     colorEl('db-ext-pct', Math.round(pct)+'%', pct>100);
   } else { document.getElementById('db-ext-fill').style.width='0%'; document.getElementById('db-ext-pct').textContent='—'; }
-
-  // Total row
-  document.getElementById('db-total-budget').textContent = fmt(ordBudget+extBudget);
-  document.getElementById('db-total-rem').textContent    = fmt((curOrd??0)+(curExt??0));
-  colorEl('db-total-proj', fmt(ordProj), ordProj>ordBudget);
 }
 
 function setEl(id, val) { document.getElementById(id).textContent = val; }
@@ -711,8 +718,9 @@ function mkChart(id, cfg) {
   chartInstances[id] = new Chart(ctx, cfg);
 }
 
-// Returns an array of length daysInMonth(mk) with daily spend amounts for that month.
-// Each day's value is derived from the day-distributed rate between surrounding snapshots.
+// Returns an array[0..daysInMonth-1] of daily spend for the given month YYYY-MM.
+// Days covered by snapshot intervals get a non-null value; days outside coverage stay null.
+// Top-up intervals (balance went up) contribute 0 spend for their days.
 function getDailySpendForMonth(field, mk) {
   const [y, m] = mk.split('-').map(Number);
   const totalDays = new Date(y, m, 0).getDate();
@@ -723,17 +731,18 @@ function getDailySpendForMonth(field, mk) {
   if(pts.length < 2) return daily;
   for(let i=1; i<pts.length; i++){
     const prev = pts[i-1], cur = pts[i];
-    const intervalDays = Math.max(1, Math.round((cur.date - prev.date)/86400000));
-    const dailyRate = (prev.bal - cur.bal) / intervalDays;
+    const intervalDays = Math.max(1, Math.round((cur.date - prev.date) / 86400000));
+    const totalSpent = prev.bal - cur.bal;
+    const dailyRate = totalSpent <= 0 ? 0 : totalSpent / intervalDays;
     for(let d=1; d<=intervalDays; d++){
-      const day = new Date(prev.date.getTime() + d*86400000);
-      if(day.getFullYear()===y && day.getMonth()===m-1){
-        const idx = day.getDate()-1;
-        daily[idx] = (daily[idx]||0) + dailyRate;
+      const day = new Date(prev.date.getTime() + d * 86400000);
+      if(day.getFullYear() === y && day.getMonth() === m-1){
+        const idx = day.getDate() - 1;
+        daily[idx] = (daily[idx] || 0) + dailyRate;
       }
     }
   }
-  return daily.map(v => v!=null ? Math.max(0,v) : null);
+  return daily;
 }
 
 function allTripMonths() {
@@ -760,8 +769,14 @@ function renderCharts() {
   const spendMapExt = Object.fromEntries(extMonthly.map(d=>[d.month,d.spend]));
 
   const ordDailyRate  = getDailyBurnRate('ordinary');
-  const monthBudgetOrd = (parseFloat(s.ordBudget)>0 && ts.monthsTotal) ? parseFloat(s.ordBudget)/ts.monthsTotal : null;
-  const monthBudgetExt = (parseFloat(s.extBudget)>0 && ts.monthsTotal) ? parseFloat(s.extBudget)/ts.monthsTotal : null;
+  // Monthly budget = current balance / days remaining in trip × avg days per month
+  const curOrdBal2 = state.snapshots.filter(s=>s.ordinary!=null).slice(-1)[0]?.ordinary ?? null;
+  const curExtBal2 = state.snapshots.filter(s=>s.extra!=null).slice(-1)[0]?.extra ?? null;
+  const daysLeftTrip = ts.daysLeft;
+  const ordBudgetAmt = parseFloat(s.ordBudget)||0;
+  const ordSpent = (ordBudgetAmt>0 && curOrdBal2!=null) ? ordBudgetAmt - curOrdBal2 : null;
+  const monthBudgetOrd = (curOrdBal2!=null && daysLeftTrip>0) ? curOrdBal2/daysLeftTrip*30.44 : null;
+  const monthBudgetExt = (curExtBal2!=null && daysLeftTrip>0) ? curExtBal2/daysLeftTrip*30.44 : null;
 
   // Build per-month actual + projection arrays for ordinary
   // Actual: months that have snapshot-derived data (≤ last snapshot month)
@@ -779,80 +794,82 @@ function renderCharts() {
 
   // ── 1. Current month: daily cumulative spend vs monthly budget ───────────────
   const curMk = monthKey(now);
-  const [cY,cM] = curMk.split('-').map(Number);
+  const [cY, cM] = curMk.split('-').map(Number);
   const daysInCurMonth = new Date(cY, cM, 0).getDate();
-  const todayDay = now.getDate(); // 1-based day of month today
-  const dailySpend = getDailySpendForMonth('ordinary', curMk);
+  const todayDayIdx = now.getDate() - 1; // 0-based
 
-  // cumulative actual up to today
-  const cumActual = [];
-  let cumSum = 0;
-  for(let d=0; d<daysInCurMonth; d++){
-    if(d < todayDay){
-      cumSum += (dailySpend[d] || 0);
-      cumActual.push(Math.round(cumSum));
-    } else {
-      cumActual.push(null);
-    }
-  }
+  // Per-day spend from snapshot intervals (null = no coverage yet)
+  const dailyByDay = getDailySpendForMonth('ordinary', curMk);
 
-  // projected cumulative from today to month end using daily burn rate
+  // Burn rate (overall average, ignoring top-ups)
   const burnRate = getDailyBurnRate('ordinary')
-    ?? ((() => { const s2=state.settings; const ts2=tripStats();
-        const ob=parseFloat(s2.ordBudget)||0;
-        const latest2=state.snapshots.filter(x=>x.ordinary!=null).slice(-1)[0];
-        const spent2=latest2&&ob>0?ob-latest2.ordinary:null;
-        return spent2!=null&&ts2.daysElapsed>0?spent2/ts2.daysElapsed:null; })());
+    ?? (ordSpent != null && ts.daysElapsed > 0 ? ordSpent / ts.daysElapsed : null);
 
-  const cumProjected = [];
-  for(let d=0; d<daysInCurMonth; d++){
-    if(d < todayDay-1){
-      cumProjected.push(null);
-    } else if(d === todayDay-1){
-      // anchor projection at today's actual
-      cumProjected.push(cumActual[d]);
-    } else {
-      const prev = cumProjected[d-1] ?? cumActual[todayDay-1] ?? 0;
-      cumProjected.push(Math.round(prev + (burnRate||0)));
+  // "Actual" cumulative through today: use real per-day data where snapshots cover it,
+  // and fall back to the burn-rate estimate for any uncovered days up to today (e.g. a
+  // gap since the last snapshot, or no snapshot yet this month). This keeps the curve
+  // continuous instead of flatlining at 0 until the next snapshot is logged.
+  const cumActual = new Array(daysInCurMonth).fill(null);
+  {
+    let cum = 0;
+    for(let d = 0; d <= todayDayIdx; d++){
+      const v = dailyByDay[d] != null ? dailyByDay[d] : (burnRate || 0);
+      cum += v;
+      cumActual[d] = Math.round(cum);
     }
   }
 
-  const monthlyBudget = monthBudgetOrd ? Math.round(monthBudgetOrd) : null;
-  const dayLabels = Array.from({length:daysInCurMonth},(_,i)=>String(i+1));
+  // Projected: continue from today's cumulative total at burn rate to end of month
+  const cumProjected = new Array(daysInCurMonth).fill(null);
+  const anchorCum = cumActual[todayDayIdx] ?? 0;
+  if(burnRate != null){
+    for(let d = todayDayIdx; d < daysInCurMonth; d++){
+      cumProjected[d] = Math.max(0, Math.round(anchorCum + burnRate * (d - todayDayIdx)));
+    }
+  } else {
+    cumProjected[todayDayIdx] = anchorCum;
+  }
+
+  // Monthly budget ceiling = current balance / days left in trip × days in this month
+  const monthlyBudgetLine = (curOrdBal2 != null && daysLeftTrip > 0)
+    ? Math.round(curOrdBal2 / daysLeftTrip * daysInCurMonth) : null;
+
+  const dayLabels = Array.from({length: daysInCurMonth}, (_, i) => String(i+1));
 
   mkChart('chart-ord-monthly', {
-    type:'line',
-    data:{
+    type: 'line',
+    data: {
       labels: dayLabels,
-      datasets:[
-        { label:'Cumul. spend', data:cumActual,
-          borderColor:'#00e060', backgroundColor:'rgba(0,200,80,0.1)',
-          borderWidth:2, pointRadius:2, pointBackgroundColor:'#00e060',
-          tension:0.2, fill:true, spanGaps:false },
-        { label:'Projected to EOM', data:cumProjected,
-          borderColor:'#007a35', borderDash:[5,4],
-          borderWidth:1.5, pointRadius:0, tension:0.2, fill:false, spanGaps:false },
-        ...(monthlyBudget ? [{
-          label:'Monthly budget',
-          data: dayLabels.map(()=>monthlyBudget),
-          borderColor:'#ffb000', borderDash:[5,4],
-          borderWidth:1.5, pointRadius:0, fill:false, tension:0, type:'line'
+      datasets: [
+        { label: 'Cumul. spend', data: cumActual,
+          borderColor: '#00e060', backgroundColor: 'rgba(0,200,80,0.1)',
+          borderWidth: 2, pointRadius: 2, pointBackgroundColor: '#00e060',
+          tension: 0, fill: true, spanGaps: false },
+        { label: 'Projected to EOM', data: cumProjected,
+          borderColor: '#007a35', borderDash: [5,4],
+          borderWidth: 1.5, pointRadius: 0, tension: 0, fill: false, spanGaps: false },
+        ...(monthlyBudgetLine ? [{
+          label: 'Monthly budget',
+          data: dayLabels.map(() => monthlyBudgetLine),
+          borderColor: '#ffb000', borderDash: [4,3],
+          borderWidth: 1.5, pointRadius: 0, fill: false, tension: 0
         }] : [])
       ]
     },
-    options:{
+    options: {
       ...CHART_DEFAULTS,
-      plugins:{
+      plugins: {
         ...CHART_DEFAULTS.plugins,
-        title:{ display:true, text: now.toLocaleString('default',{month:'long',year:'numeric'}).toUpperCase(),
-          color:'#007a35', font:{family:"'Share Tech Mono',monospace",size:11} },
-        tooltip:{ callbacks:{ label: c => ' '+sym+Math.round(c.raw||0).toLocaleString() } }
+        title: { display: true,
+          text: now.toLocaleString('default', {month:'long', year:'numeric'}).toUpperCase(),
+          color: '#007a35', font: {family:"'Share Tech Mono',monospace", size:11} },
+        tooltip: { callbacks: { label: c => ' ' + sym + (c.raw != null ? Math.round(c.raw).toLocaleString() : '—') } }
       },
-      scales:{
+      scales: {
         ...CHART_DEFAULTS.scales,
-        x:{ ...CHART_DEFAULTS.scales.x,
-          title:{ display:true, text:'DAY OF MONTH', color:'#007a35',
-            font:{family:"'Share Tech Mono',monospace",size:10} } }
+        x: { ...CHART_DEFAULTS.scales.x,
+          title: { display: true, text: 'DAY OF MONTH', color: '#007a35',
+            font: {family:"'Share Tech Mono',monospace", size:10} } }
       }
     }
   });
