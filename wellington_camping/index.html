@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wellington Freedom Camping Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+#app{display:flex;height:100vh;overflow:hidden}
+
+/* ---- Sidebar ---- */
+#sidebar{
+  width:270px;min-width:270px;
+  background:#111827;
+  display:flex;flex-direction:column;
+  border-right:1px solid #1f2937;
+  position:relative;z-index:1000;
+}
+#sidebar-scroll{padding:16px;overflow-y:auto;flex:1}
+#map{flex:1;min-width:0}
+
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #1f2937}
+.logo-icon{width:36px;height:36px;background:#065f46;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.logo h1{font-size:13px;font-weight:700;color:#f9fafb;line-height:1.3}
+.logo p{font-size:10px;color:#6b7280;margin-top:1px}
+
+.section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#4b5563;margin:14px 0 6px}
+
+.legend-row{display:flex;align-items:center;gap:9px;padding:5px 0;font-size:12px;color:#d1d5db;border-bottom:1px solid #1f2937}
+.legend-row:last-child{border-bottom:none}
+.swatch{width:16px;height:11px;border-radius:3px;flex-shrink:0}
+.dot-sw{width:12px;height:12px;border-radius:50%;flex-shrink:0;border:2px solid rgba(255,255,255,.15)}
+.swatch-red{background:rgba(239,68,68,.5);border:1.5px solid #ef4444}
+.swatch-green{background:#16a34a}
+.swatch-amber{background:#d97706}
+.dot-blue{background:#3b82f6}
+.dot-purple{background:#9333ea}
+
+.rules-list{list-style:none}
+.rule-item{font-size:11px;color:#9ca3af;padding:5px 0;border-bottom:1px solid #1f2937;display:flex;gap:7px;line-height:1.45}
+.rule-item:last-child{border-bottom:none}
+.rule-icon{flex-shrink:0;color:#6b7280}
+
+.fine-badge{margin-top:12px;background:#450a0a;border:1px solid #7f1d1d;border-radius:8px;padding:9px 11px;font-size:11px;color:#fca5a5;line-height:1.5}
+
+.status-bar{padding:9px 14px;border-top:1px solid #1f2937;font-size:10.5px;min-height:32px;display:flex;align-items:center;gap:6px;background:#0d1117}
+.s-loading{color:#fbbf24}.s-ok{color:#34d399}.s-warn{color:#f87171}
+
+.dot-status{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.ds-loading{background:#fbbf24;animation:pulse 1.4s ease-in-out infinite}
+.ds-ok{background:#34d399}
+.ds-warn{background:#f87171}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.layer-ctrl{margin-top:12px}
+.layer-toggle{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:11px;color:#9ca3af;user-select:none}
+.layer-toggle input{cursor:pointer;accent-color:#60a5fa;width:14px;height:14px}
+.layer-toggle:hover{color:#d1d5db}
+
+/* ---- Popup ---- */
+.leaflet-popup-content-wrapper{border-radius:10px!important;box-shadow:0 4px 20px rgba(0,0,0,.25)!important;padding:0!important}
+.leaflet-popup-content{margin:0!important;width:auto!important}
+.popup-inner{padding:13px 15px;min-width:190px;max-width:240px;font-family:-apple-system,sans-serif}
+.popup-title{font-size:14px;font-weight:700;color:#111827;margin-bottom:5px;line-height:1.3}
+.popup-badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;margin-bottom:8px}
+.popup-body{font-size:12px;color:#374151;line-height:1.6}
+.badge-red{background:#fee2e2;color:#991b1b}
+.badge-green{background:#dcfce7;color:#166534}
+.badge-amber{background:#fef3c7;color:#92400e}
+.badge-blue{background:#dbeafe;color:#1e40af}
+.badge-purple{background:#f3e8ff;color:#6b21a8}
+
+/* ---- Mobile ---- */
+@media(max-width:640px){
+  #sidebar{width:100%;min-width:unset;height:auto;max-height:42vh;position:absolute;bottom:0;z-index:2000;border-right:none;border-top:1px solid #1f2937}
+  #app{flex-direction:column}
+  #map{height:58vh}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <div id="sidebar-scroll">
+
+      <div class="logo">
+        <div class="logo-icon">🏕️</div>
+        <div>
+          <h1>Wellington<br>Freedom Camping</h1>
+          <p>WCC Public Places Bylaw 2022</p>
+        </div>
+      </div>
+
+      <div class="section-title">Zone Legend</div>
+      <div class="legend-row"><div class="swatch swatch-red"></div><span>Camping <strong style="color:#fca5a5">prohibited</strong> — Parks &amp; reserves</span></div>
+      <div class="legend-row"><div class="swatch swatch-green" style="border-radius:50%;width:13px;height:13px"></div><span>Designated <strong style="color:#86efac">free</strong> camping (self-contained)</span></div>
+      <div class="legend-row"><div class="swatch swatch-amber" style="border-radius:50%;width:13px;height:13px"></div><span><strong style="color:#fde68a">Paid</strong> overnight parking option</span></div>
+      <div class="legend-row"><div class="dot-sw dot-blue"></div><span>Public toilet</span></div>
+      <div class="legend-row"><div class="dot-sw dot-purple"></div><span>Dump station (waste disposal)</span></div>
+
+      <div class="section-title">Rules — All Wellington Areas</div>
+      <ul class="rules-list">
+        <li class="rule-item"><span class="rule-icon">🚐</span>Must be a <strong style="color:#d1d5db">certified self-contained</strong> motor vehicle</li>
+        <li class="rule-item"><span class="rule-icon">📅</span>Maximum <strong style="color:#d1d5db">4 consecutive nights</strong> per location per month</li>
+        <li class="rule-item"><span class="rule-icon">📍</span>Must move <strong style="color:#d1d5db">500 m away</strong> before returning to the same area</li>
+        <li class="rule-item"><span class="rule-icon">🏛️</span>All on-street parking follows normal time limits</li>
+      </ul>
+
+      <div class="fine-badge">⚠️ Fines up to <strong>$400</strong> for freedom camping offences under the Freedom Camping Act 2011</div>
+
+      <div class="layer-ctrl">
+        <div class="section-title">Toggle Layers</div>
+        <label class="layer-toggle"><input type="checkbox" id="chk-reserves" checked> Parks &amp; reserves</label>
+        <label class="layer-toggle"><input type="checkbox" id="chk-toilets" checked> Public toilets</label>
+        <label class="layer-toggle"><input type="checkbox" id="chk-camping" checked> Camping sites</label>
+      </div>
+
+    </div>
+    <div class="status-bar s-loading" id="status-bar">
+      <div class="dot-status ds-loading" id="status-dot"></div>
+      <span id="status-text">Loading live WCC data…</span>
+    </div>
+  </div>
+
+  <div id="map"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const WCC = 'https://gis.wcc.govt.nz/arcgis/rest/services';
+
+// ---- Map init ----
+const map = L.map('map', { zoomControl: false }).setView([-41.293, 174.780], 13);
+L.control.zoom({ position: 'topright' }).addTo(map);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank">CARTO</a> | Data: <a href="https://wellington.govt.nz" target="_blank">Wellington City Council</a>',
+  subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+// ---- Layer groups ----
+const lgReserves = L.layerGroup().addTo(map);
+const lgToilets  = L.layerGroup().addTo(map);
+const lgCamping  = L.layerGroup().addTo(map);
+
+// Toggle handlers
+['reserves','toilets','camping'].forEach(id => {
+  const lgs = {reserves:lgReserves, toilets:lgToilets, camping:lgCamping};
+  document.getElementById('chk-'+id).addEventListener('change', e => {
+    if(e.target.checked) lgs[id].addTo(map); else map.removeLayer(lgs[id]);
+  });
+});
+
+// ---- Popup builder ----
+function popupHtml(title, badge, badgeClass, body) {
+  return `<div class="popup-inner">
+    <div class="popup-title">${title}</div>
+    <div class="popup-badge ${badgeClass}">${badge}</div>
+    <div class="popup-body">${body}</div>
+  </div>`;
+}
+
+// ---- Custom icons ----
+function makeCircleIcon(color, size=13){
+  return L.divIcon({
+    html:`<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2.5px solid rgba(255,255,255,.9);box-shadow:0 1px 6px rgba(0,0,0,.45)"></div>`,
+    className:'',iconSize:[size,size],iconAnchor:[size/2,size/2],popupAnchor:[0,-size/2-4]
+  });
+}
+function makeBadgeIcon(emoji, bg, size=32){
+  return L.divIcon({
+    html:`<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:${size*.5}px;border:2.5px solid rgba(255,255,255,.9);box-shadow:0 2px 10px rgba(0,0,0,.45)">${emoji}</div>`,
+    className:'',iconSize:[size,size],iconAnchor:[size/2,size/2],popupAnchor:[0,-size/2-4]
+  });
+}
+
+const iconToilet  = makeCircleIcon('#2563eb');
+const iconDump    = makeCircleIcon('#9333ea',14);
+const iconFree    = makeBadgeIcon('🏕️','#15803d');
+const iconPaid    = makeBadgeIcon('💰','#b45309');
+
+// ---- Hardcoded: designated free camping ----
+[
+  { name:'Evans Bay Marina Car Park', lat:-41.3119, lng:174.7965,
+    body:'<strong>52 designated parks</strong><br>Self-contained vehicles only<br>Dump station on-site<br>Free — open year round' },
+  { name:'Te Kopahou Visitor Centre Car Park', lat:-41.3483, lng:174.7499,
+    body:'<strong>16 designated parks</strong><br>Self-contained vehicles only<br>Not suitable for vehicles &gt;7 m or caravans<br>Free' },
+].forEach(s => {
+  L.marker([s.lat,s.lng],{icon:iconFree})
+   .bindPopup(popupHtml(s.name,'✅ Designated Free Camping','badge-green',s.body))
+   .addTo(lgCamping);
+});
+
+// ---- Hardcoded: paid options ----
+[
+  { name:'Barnett Street Car Park', lat:-41.2839, lng:174.7807,
+    body:'$30 per 24 hours<br>Self-contained only<br>No Saturday overnight (Harbourside Market on Sundays)' },
+  { name:'Cuba Street Motorhome Park', lat:-41.2961, lng:174.7739,
+    body:'25 Garrett Street, Te Aro<br>Electricity connection only<br><a href="http://cubastreetmotorhomepark.co.nz" target="_blank">cubastreetmotorhomepark.co.nz</a>' },
+  { name:'Capital Lodge Motor Inn', lat:-41.2234, lng:174.8097,
+    body:'1 Newlands Road, Newlands' },
+].forEach(s => {
+  L.marker([s.lat,s.lng],{icon:iconPaid})
+   .bindPopup(popupHtml(s.name,'💰 Paid Overnight Option','badge-amber',s.body))
+   .addTo(lgCamping);
+});
+
+// ---- Hardcoded: dump stations ----
+[
+  { name:'Dump Station — Evans Bay Marina', lat:-41.3126, lng:174.7972,
+    body:'517 Evans Bay Parade, Hataitai<br>Purpose-built sewage disposal' },
+  { name:'Dump Station — Ngauranga Gorge', lat:-41.2320, lng:174.8065,
+    body:'Ngauranga Gorge<br>Purpose-built sewage disposal' },
+].forEach(s => {
+  L.marker([s.lat,s.lng],{icon:iconDump})
+   .bindPopup(popupHtml(s.name,'💧 Dump Station','badge-purple',s.body))
+   .addTo(lgCamping);
+});
+
+// ---- Status tracking ----
+let done=0,errs=0;const total=2;
+function tick(ok){
+  if(ok)done++;else errs++;
+  const bar=document.getElementById('status-bar');
+  const txt=document.getElementById('status-text');
+  const dot=document.getElementById('status-dot');
+  if(done+errs<total){
+    txt.textContent=`Loading WCC data (${done}/${total})…`;
+    return;
+  }
+  if(errs===total){
+    bar.className='status-bar s-warn';
+    dot.className='dot-status ds-warn';
+    txt.textContent='Live data unavailable — check internet / CORS. Camping sites shown.';
+  } else {
+    bar.className='status-bar s-ok';
+    dot.className='dot-status ds-ok';
+    txt.textContent=`Live WCC data loaded (${done}/${total} layers) · ${new Date().toLocaleDateString('en-NZ')}`;
+  }
+}
+
+// ---- Fetch helpers ----
+async function loadGeoJSON(url, layerGroup, styleFn, popupFn, simplify=0.00003){
+  const sep = url.includes('?') ? '&' : '?';
+  const full = `${url}${sep}f=geojson&outSR=4326${simplify?'&maxAllowableOffset='+simplify:''}`;
+  const res = await fetch(full);
+  if(!res.ok) throw new Error(res.status);
+  const data = await res.json();
+  if(!data.features) throw new Error('No features');
+  L.geoJSON(data, {
+    style: styleFn,
+    onEachFeature(feat,layer){ if(popupFn) layer.bindPopup(popupFn(feat)); }
+  }).addTo(layerGroup);
+}
+
+
+// ---- Parks & Reserves (PROHIBITED) ----
+loadGeoJSON(
+  `${WCC}/Parks/ParksReserves/MapServer/2/query?where=1%3D1`,
+  lgReserves,
+  () => ({ color:'#dc2626', fillColor:'#ef4444', fillOpacity:0.18, weight:1.5, dashArray:'3,4' }),
+  (f) => {
+    const name = f.properties?.NAME || f.properties?.name || 'Reserve';
+    return popupHtml(name,'🚫 Camping Prohibited','badge-red',
+      'Reserve land under the <strong>Reserves Act 1977</strong>.<br>Camping is not permitted on any reserve.');
+  },
+  0.00005
+).then(()=>tick(true)).catch(()=>tick(false));
+
+
+// ---- Public Toilets ----
+(async()=>{
+  try {
+    const url =
+      "https://gis.wcc.govt.nz/arcgis/rest/services/Parks/Parks/MapServer/5/query" +
+      "?where=1%3D1&outFields=*&f=geojson&outSR=4326";
+
+    const res = await fetch(url);
+    if(!res.ok) throw new Error(res.status);
+
+    const data = await res.json();
+    if(!data.features) throw new Error('No features');
+
+    L.geoJSON(data, {
+      pointToLayer(feature, latlng) {
+        const p = feature.properties || {};
+        const title = p.location || p.Address || 'Public Toilet';
+
+        const body = `
+          ${p.suburb ? p.suburb + '<br>' : ''}
+          ${p.open_hours ? '<strong>Hours:</strong> ' + p.open_hours + '<br>' : ''}
+          ${String(p.mobility_access || '').toLowerCase().includes('yes')
+            ? '<strong>♿ Accessible</strong><br>' : ''}
+          ${p.Address || ''}
+        `;
+
+        return L.marker(latlng,{icon:iconToilet})
+          .bindPopup(
+            popupHtml(title,'🚽 Public Toilet','badge-blue',body)
+          );
+      }
+    }).addTo(lgToilets);
+
+    tick(true);
+  } catch(e) {
+    console.error(e);
+    tick(false);
+  }
+})();
+</script>
+
+</body>
+</html>
