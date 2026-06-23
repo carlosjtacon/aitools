@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time Zones · ES · CA · NZ</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:     #f4f3ef;
+  --surf:   #ffffff;
+  --border: #e2e0d8;
+  --text:   #1c1b18;
+  --muted:  #94928a;
+  --faint:  #c8c6be;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  min-height: 100vh;
+  padding: 44px 20px 60px;
+  display: flex;
+  justify-content: center;
+}
+
+.app { width: 100%; max-width: 540px; }
+
+header { text-align: center; margin-bottom: 24px; }
+header h1 {
+  font-size: 0.56rem;
+  letter-spacing: 7px;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+/* ── NEW HEADER UTC DISPLAY ── */
+.header-utc {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 1.5px;
+  background: var(--surf);
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+/* ── TIMELINE ── */
+.tl-card {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 28px 22px 18px;
+  margin-bottom: 12px;
+  user-select: none;
+  touch-action: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.tl-layout {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+  margin-bottom: 12px;
+}
+.tl-flags {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 26px;
+  flex-shrink: 0;
+}
+.tl-flag {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+.tl-bars {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  cursor: crosshair;
+}
+.bar-track {
+  height: 32px;
+  background: #eeede8;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+.day-seg {
+  position: absolute;
+  top: 0; height: 100%;
+  border-radius: 8px;
+}
+
+/* ── NEEDLE ── */
+.needle {
+  position: absolute;
+  top: -8px; bottom: -8px;
+  width: 2px; margin-left: -1px;
+  background: #1c1b18;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 20;
+}
+.needle::after {
+  content: '';
+  position: absolute;
+  top: 8px; left: 50%;
+  transform: translateX(-50%);
+  width: 10px; height: 10px;
+  background: #1c1b18;
+  border-radius: 50%;
+}
+
+/* ── HOUR LABELS ── */
+.tl-hours-row { display: flex; gap: 14px; }
+.tl-hours-spacer { width: 26px; flex-shrink: 0; }
+.tl-hours { flex: 1; display: flex; justify-content: space-between; }
+.tl-hour-lbl { font-size: 0.48rem; color: var(--faint); font-feature-settings: 'tnum'; }
+
+/* ── CONTROLS ── */
+.controls {
+  display: flex; align-items: center;
+  gap: 12px; margin-bottom: 20px; padding: 0 2px;
+}
+input[type=range] {
+  flex: 1; -webkit-appearance: none;
+  height: 2px; background: var(--border);
+  border-radius: 2px; cursor: pointer; outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 15px; height: 15px;
+  border-radius: 50%; background: #1c1b18; cursor: pointer;
+}
+input[type=range]::-moz-range-thumb {
+  width: 15px; height: 15px;
+  border-radius: 50%; background: #1c1b18; cursor: pointer; border: none;
+}
+.now-btn {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.56rem; letter-spacing: 2px; text-transform: uppercase;
+  padding: 7px 14px; border-radius: 20px;
+  cursor: pointer; font-family: inherit;
+  transition: color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+.now-btn:hover { color: var(--text); border-color: var(--muted); }
+
+/* ── CLOCK CARDS ── */
+.clocks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.clock-card {
+  background: var(--surf);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 8px 18px;
+  text-align: center;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.clock-card.is-day {
+  border-color: var(--zc);
+  box-shadow: 0 2px 16px -4px color-mix(in srgb, var(--zc) 28%, transparent);
+}
+.clock-flag { font-size: 1.3rem; line-height: 1; margin-bottom: 8px; }
+
+/* ── CITY SELECT ── */
+.city-wrap {
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+.city-select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: transparent;
+  /* Added dropdown arrow SVG */
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394928a%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat;
+  background-position: right 2px top 55%;
+  background-size: 8px auto;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  font-family: inherit;
+  font-size: 0.50rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 14px 3px 4px; /* extra right padding for the arrow */
+  outline: none;
+  text-align: center;
+  text-align-last: center;
+  max-width: 100%;
+  transition: color 0.15s, border-color 0.15s;
+}
+.city-select:hover { color: var(--text); border-bottom-color: var(--muted); }
+
+.clock-time {
+  font-family: 'SF Mono', 'Consolas', 'Courier New', monospace;
+  font-size: 1.5rem; font-weight: 700;
+  color: var(--muted); letter-spacing: 1px; line-height: 1;
+  margin-bottom: 8px; transition: color 0.3s;
+}
+.clock-card.is-day .clock-time { color: var(--zc); }
+.clock-offset {
+  font-size: 0.44rem; color: var(--faint);
+  letter-spacing: 1px; text-transform: uppercase;
+  min-height: 12px; margin-bottom: 4px;
+}
+.clock-period {
+  font-size: 0.48rem; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--faint);
+  transition: color 0.3s;
+}
+.clock-card.is-day .clock-period { color: var(--zc); opacity: 0.7; }
+
+@media (max-width: 380px) {
+  .clock-time { font-size: 1.2rem; }
+  .clocks { gap: 7px; }
+  .clock-card { padding: 14px 5px 12px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Time Zone Comparator</h1>
+    <div class="header-utc" id="headerUtc">UTC 00:00</div>
+  </header>
+
+  <div class="tl-card" id="tlCard">
+    <div class="tl-layout">
+      <div class="tl-flags" id="tlFlags"></div>
+      <div class="tl-bars"  id="tlBars"></div>
+    </div>
+    <div class="tl-hours-row">
+      <div class="tl-hours-spacer"></div>
+      <div class="tl-hours" id="tlHours"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <input type="range" id="slider" min="0" max="1439" step="1">
+    <button class="now-btn" id="nowBtn">Now</button>
+  </div>
+
+  <div class="clocks" id="clocks"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── City list (grouped, west → east) ──────────────────────────────────────
+  const CITY_LIST = [
+    { name: 'Honolulu',     flag: '🇺🇸', tz: 'Pacific/Honolulu',               group: 'Americas' },
+    { name: 'Los Angeles',  flag: '🇺🇸', tz: 'America/Los_Angeles',            group: 'Americas' },
+    { name: 'Denver',       flag: '🇺🇸', tz: 'America/Denver',                  group: 'Americas' },
+    { name: 'Chicago',      flag: '🇺🇸', tz: 'America/Chicago',                 group: 'Americas' },
+    { name: 'Mexico City',  flag: '🇲🇽', tz: 'America/Mexico_City',             group: 'Americas' },
+    { name: 'New York',     flag: '🇺🇸', tz: 'America/New_York',                group: 'Americas' },
+    { name: 'Toronto',      flag: '🇨🇦', tz: 'America/Toronto',                 group: 'Americas' },
+    { name: 'São Paulo',    flag: '🇧🇷', tz: 'America/Sao_Paulo',               group: 'Americas' },
+    { name: 'Buenos Aires', flag: '🇦🇷', tz: 'America/Argentina/Buenos_Aires',  group: 'Americas' },
+    { name: 'Lisbon',       flag: '🇵🇹', tz: 'Europe/Lisbon',                   group: 'Europe & Africa' },
+    { name: 'London',       flag: '🇬🇧', tz: 'Europe/London',                   group: 'Europe & Africa' },
+    { name: 'Madrid',       flag: '🇪🇸', tz: 'Europe/Madrid',                   group: 'Europe & Africa' },
+    { name: 'Amsterdam',    flag: '🇳🇱', tz: 'Europe/Amsterdam',                group: 'Europe & Africa' },
+    { name: 'Berlin',       flag: '🇩🇪', tz: 'Europe/Berlin',                   group: 'Europe & Africa' },
+    { name: 'Paris',        flag: '🇫🇷', tz: 'Europe/Paris',                    group: 'Europe & Africa' },
+    { name: 'Rome',         flag: '🇮🇹', tz: 'Europe/Rome',                     group: 'Europe & Africa' },
+    { name: 'Cairo',        flag: '🇪🇬', tz: 'Africa/Cairo',                    group: 'Europe & Africa' },
+    { name: 'Nairobi',      flag: '🇰🇪', tz: 'Africa/Nairobi',                  group: 'Europe & Africa' },
+    { name: 'Istanbul',     flag: '🇹🇷', tz: 'Europe/Istanbul',                 group: 'Europe & Africa' },
+    { name: 'Moscow',       flag: '🇷🇺', tz: 'Europe/Moscow',                   group: 'Europe & Africa' },
+    { name: 'Dubai',        flag: '🇦🇪', tz: 'Asia/Dubai',                      group: 'Europe & Africa' },
+    { name: 'Karachi',      flag: '🇵🇰', tz: 'Asia/Karachi',                    group: 'Asia & Pacific' },
+    { name: 'Kolkata',      flag: '🇮🇳', tz: 'Asia/Kolkata',                    group: 'Asia & Pacific' },
+    { name: 'Dhaka',        flag: '🇧🇩', tz: 'Asia/Dhaka',                      group: 'Asia & Pacific' },
+    { name: 'Bangkok',      flag: '🇹🇭', tz: 'Asia/Bangkok',                    group: 'Asia & Pacific' },
+    { name: 'Singapore',    flag: '🇸🇬', tz: 'Asia/Singapore',                  group: 'Asia & Pacific' },
+    { name: 'Hong Kong',    flag: '🇭🇰', tz: 'Asia/Hong_Kong',                  group: 'Asia & Pacific' },
+    { name: 'Beijing',      flag: '🇨🇳', tz: 'Asia/Shanghai',                   group: 'Asia & Pacific' },
+    { name: 'Seoul',        flag: '🇰🇷', tz: 'Asia/Seoul',                      group: 'Asia & Pacific' },
+    { name: 'Tokyo',        flag: '🇯🇵', tz: 'Asia/Tokyo',                      group: 'Asia & Pacific' },
+    { name: 'Sydney',       flag: '🇦🇺', tz: 'Australia/Sydney',                group: 'Asia & Pacific' },
+    { name: 'Melbourne',    flag: '🇦🇺', tz: 'Australia/Melbourne',             group: 'Asia & Pacific' },
+    { name: 'Auckland',     flag: '🇳🇿', tz: 'Pacific/Auckland',                group: 'Asia & Pacific' },
+  ];
+  const GROUPS       = ['Americas', 'Europe & Africa', 'Asia & Pacific'];
+  const SLOT_COLORS  = ['#c97b0a', '#2b6bbf', '#1a9b84'];
+  const DEFAULT_TZ   = ['Europe/Madrid', 'America/Los_Angeles', 'Pacific/Auckland'];
+  const DAY_START    = 7;
+  const DAY_END      = 23;
+  const DAY_HOURS    = DAY_END - DAY_START;
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const fmt = (h, m) => pad(h) + ':' + pad(m);
+  const pad = n => String(n).padStart(2, '0');
+
+  function getPeriod(h) {
+    if (h <  5) return 'late night';
+    if (h <  7) return 'dawn';
+    if (h < 12) return 'morning';
+    if (h < 14) return 'midday';
+    if (h < 18) return 'afternoon';
+    if (h < 21) return 'evening';
+    if (h < 23) return 'night';
+    return 'late night';
+  }
+
+  function nowUtcMin() {
+    const d = new Date();
+    return d.getUTCHours() * 60 + d.getUTCMinutes();
+  }
+
+  // DST-aware UTC offset in minutes using Intl
+  function getOffsetMin(tz) {
+    const now   = new Date();
+    const inTz  = new Date(now.toLocaleString('en-US', { timeZone: tz }));
+    const inUTC = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
+    return Math.round((inTz - inUTC) / 60000);
+  }
+
+  function cityByTz(tz) {
+    return CITY_LIST.find(c => c.tz === tz) || CITY_LIST[0];
+  }
+
+  function buildOptionsHTML(selectedTz) {
+    return GROUPS.map(g => {
+      const opts = CITY_LIST
+        .filter(c => c.group === g)
+        .map(c => `<option value="${c.tz}"${c.tz === selectedTz ? ' selected' : ''}>${c.name}</option>`)
+        .join('');
+      return `<optgroup label="${g}">${opts}</optgroup>`;
+    }).join('');
+  }
+
+  // ── Zone state ────────────────────────────────────────────────────────────
+  const zones = DEFAULT_TZ.map((tz, i) => ({
+    tz,
+    color:     SLOT_COLORS[i],
+    offsetMin: getOffsetMin(tz),
+  }));
+
+  // ── DOM refs ──────────────────────────────────────────────────────────────
+  const tlFlagsEl = document.getElementById('tlFlags');
+  const tlBarsEl  = document.getElementById('tlBars');
+  const clocksEl  = document.getElementById('clocks');
+  const headerUtcEl = document.getElementById('headerUtc');
+
+  // ── Draw a single bar track ───────────────────────────────────────────────
+  function drawBar(trackEl, color, offsetMin) {
+    trackEl.innerHTML = '';
+    const utcStartMin = ((DAY_START * 60 - offsetMin) % 1440 + 1440) % 1440;
+    const pStart      = utcStartMin / 1440;
+    const pDuration   = DAY_HOURS / 24;
+
+    function addSeg(l, w) {
+      if (w <= 0) return;
+      const seg = document.createElement('div');
+      seg.className = 'day-seg';
+      seg.style.cssText = `left:${l*100}%;width:${w*100}%;background:${color}55;border-radius:8px;`;
+      trackEl.appendChild(seg);
+    }
+
+    if (pStart + pDuration <= 1) {
+      addSeg(pStart, pDuration);
+    } else {
+      addSeg(pStart, 1 - pStart);
+      addSeg(0, pStart + pDuration - 1);
+    }
+  }
+
+  // ── Build per-slot DOM ────────────────────────────────────────────────────
+  const slotEls = zones.map((z, i) => {
+    // Timeline flag
+    const flagEl = document.createElement('div');
+    flagEl.className = 'tl-flag';
+    flagEl.textContent = cityByTz(z.tz).flag;
+    tlFlagsEl.appendChild(flagEl);
+
+    // Bar track
+    const trackEl = document.createElement('div');
+    trackEl.className = 'bar-track';
+    drawBar(trackEl, z.color, z.offsetMin);
+    tlBarsEl.appendChild(trackEl);
+
+    // Clock card
+    const card = document.createElement('div');
+    card.className = 'clock-card';
+    card.style.setProperty('--zc', z.color);
+    card.innerHTML = `
+      <div class="clock-flag" data-flag>${cityByTz(z.tz).flag}</div>
+      <div class="city-wrap">
+        <select class="city-select" data-sel>${buildOptionsHTML(z.tz)}</select>
+      </div>
+      <div class="clock-time"   data-t></div>
+      <div class="clock-offset" data-o></div>
+      <div class="clock-period" data-p></div>
+    `;
+    clocksEl.appendChild(card);
+
+    // City change handler
+    card.querySelector('[data-sel]').addEventListener('change', function () {
+      zones[i].tz        = this.value;
+      zones[i].offsetMin = getOffsetMin(this.value);
+      const city = cityByTz(this.value);
+      flagEl.textContent = city.flag;
+      card.querySelector('[data-flag]').textContent = city.flag;
+      drawBar(trackEl, z.color, zones[i].offsetMin);
+      update();
+    });
+
+    return {
+      card,
+      timeEl:   card.querySelector('[data-t]'),
+      offsetEl: card.querySelector('[data-o]'),
+      periodEl: card.querySelector('[data-p]'),
+    };
+  });
+
+  // Needle (label removed since it's in the header now)
+  const needle = document.createElement('div');
+  needle.className = 'needle';
+  tlBarsEl.appendChild(needle);
+
+  // Hour labels
+  const tlHours = document.getElementById('tlHours');
+  [0, 3, 6, 9, 12, 15, 18, 21, 24].forEach(h => {
+    const span = document.createElement('span');
+    span.className = 'tl-hour-lbl';
+    span.textContent = (h === 24 ? '0' : h).toString().padStart(2, '0');
+    tlHours.appendChild(span);
+  });
+
+  // ── State + update ────────────────────────────────────────────────────────
+  let utcMin  = nowUtcMin();
+  let lastNow = utcMin;
+
+  function update() {
+    const utcH = Math.floor(utcMin / 60) % 24;
+    const utcM = utcMin % 60;
+
+    needle.style.left = `calc(${utcMin / 1440 * 100}% - 1px)`;
+    
+    // Update the main header UTC clock instead of the small label
+    headerUtcEl.textContent = `UTC ${fmt(utcH, utcM)}`;
+
+    zones.forEach((z, i) => {
+      const totalLocal = utcMin + z.offsetMin;
+      const dayOffset  = Math.floor(totalLocal / 1440);
+      const localMin   = ((totalLocal % 1440) + 1440) % 1440;
+      const lH = Math.floor(localMin / 60);
+      const lM = localMin % 60;
+      const day = lH >= DAY_START && lH < DAY_END;
+
+      const e = slotEls[i];
+      e.timeEl.textContent   = fmt(lH, lM);
+      e.periodEl.textContent = getPeriod(lH);
+      e.offsetEl.textContent = dayOffset === 1 ? '+1 day' : dayOffset === -1 ? '−1 day' : '';
+      e.card.classList.toggle('is-day', day);
+    });
+
+    document.getElementById('slider').value = utcMin;
+  }
+
+  // ── Events ────────────────────────────────────────────────────────────────
+  document.getElementById('slider').addEventListener('input', e => {
+    utcMin = +e.target.value; lastNow = -1; update();
+  });
+  document.getElementById('nowBtn').addEventListener('click', () => {
+    utcMin = nowUtcMin(); lastNow = utcMin; update();
+  });
+
+  const tlCard = document.getElementById('tlCard');
+  let dragging = false;
+  function setFromX(clientX) {
+    const rect = tlBarsEl.getBoundingClientRect();
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    utcMin = Math.round(x / rect.width * 1440) % 1440;
+    lastNow = -1; update();
+  }
+  tlCard.addEventListener('mousedown',  e => { dragging = true; setFromX(e.clientX); });
+  window.addEventListener('mousemove',  e => { if (dragging) setFromX(e.clientX); });
+  window.addEventListener('mouseup',    () => { dragging = false; });
+  tlCard.addEventListener('touchstart', e => { dragging = true; setFromX(e.touches[0].clientX); e.preventDefault(); }, { passive: false });
+  window.addEventListener('touchmove',  e => { if (dragging) { setFromX(e.touches[0].clientX); e.preventDefault(); } }, { passive: false });
+  window.addEventListener('touchend',   () => { dragging = false; });
+
+  setInterval(() => {
+    const n = nowUtcMin();
+    if (Math.abs(utcMin - lastNow) < 2) { utcMin = n; update(); }
+    lastNow = n;
+  }, 30_000);
+
+  update();
+})();
+</script>
+</body>
+</html>
