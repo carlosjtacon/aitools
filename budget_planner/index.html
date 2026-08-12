@@ -799,30 +799,35 @@ function renderCharts() {
   // Per-day spend from snapshot intervals (null = no coverage yet)
   const dailyByDay = getDailySpendForMonth('ordinary', curMk);
 
-  // Burn rate (overall average, ignoring top-ups)
-  const burnRate = getDailyBurnRate('ordinary')
+  // Overall trip burn rate (fallback only)
+  const tripBurnRate = getDailyBurnRate('ordinary')
     ?? (ordSpent != null && ts.daysElapsed > 0 ? ordSpent / ts.daysElapsed : null);
 
-  // "Actual" cumulative through today: use real per-day data where snapshots cover it,
-  // and fall back to the burn-rate estimate for any uncovered days up to today (e.g. a
-  // gap since the last snapshot, or no snapshot yet this month). This keeps the curve
-  // continuous instead of flatlining at 0 until the next snapshot is logged.
+  // Current-month daily rate: average of the days in this month that are covered by
+  // snapshots. This is the right slope for projecting the rest of the month.
+  const coveredThisMonth = dailyByDay.slice(0, todayDayIdx + 1).filter(v => v != null);
+  const monthBurnRate = coveredThisMonth.length > 0
+    ? coveredThisMonth.reduce((a, b) => a + b, 0) / coveredThisMonth.length
+    : tripBurnRate;
+
+  // Cumulative actual through today: real per-day data where covered by snapshots,
+  // fall back to monthly burn rate for any gap days.
   const cumActual = new Array(daysInCurMonth).fill(null);
   {
     let cum = 0;
     for(let d = 0; d <= todayDayIdx; d++){
-      const v = dailyByDay[d] != null ? dailyByDay[d] : (burnRate || 0);
+      const v = dailyByDay[d] != null ? dailyByDay[d] : (monthBurnRate || 0);
       cum += v;
       cumActual[d] = Math.round(cum);
     }
   }
 
-  // Projected: continue from today's cumulative total at burn rate to end of month
+  // Projected: from today's cumulative, extend at this month's daily rate to end of month.
   const cumProjected = new Array(daysInCurMonth).fill(null);
   const anchorCum = cumActual[todayDayIdx] ?? 0;
-  if(burnRate != null){
+  if(monthBurnRate != null){
     for(let d = todayDayIdx; d < daysInCurMonth; d++){
-      cumProjected[d] = Math.max(0, Math.round(anchorCum + burnRate * (d - todayDayIdx)));
+      cumProjected[d] = Math.max(0, Math.round(anchorCum + monthBurnRate * (d - todayDayIdx)));
     }
   } else {
     cumProjected[todayDayIdx] = anchorCum;
